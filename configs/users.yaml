@@ -1,0 +1,37 @@
+# Here's the example format with comments
+# The hierarchy is Global (default value) -> Group -> User, the lowest object value overrides upper values applied to it
+users:
+  groups:
+    example-group:
+      # Optional to state
+      # default: no comment (iirc from code)
+      comment: 'Example deploy group'
+      # Enabled option, determines if the group members are enabled or disabled in proxmox
+      # default: true
+      enabled: true
+      # Optional to state, overrides defaults
+      # default: as set up in defaults section
+      password-strength:
+        special: false
+        numbers: true
+        lowercase: true
+        uppercase: false
+        length: 8
+      members:
+        - name: UserEX
+          # Enabled option, overrides upper options
+          enabled: true
+          # Required to specify, shoud be unique among all users per script installation instance, it must be safe to use 0 as the first id according to code, but just in case it's better to start from 1
+          internal-id: 1
+          # User comment option, optional to declare
+          # default: "Managed by automation tool"
+          comment: 'Example comment on user'
+
+# Global defaults section, I may add defining "permit" and "enabled" to this later
+defaults:
+  password-strength:
+    special: false
+    numbers: true
+    lowercase: true
+    uppercase: false
+    length: 8

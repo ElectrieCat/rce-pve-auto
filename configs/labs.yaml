@@ -1,0 +1,27 @@
+# Here's the example format with comments
+# The hierarchy is Global (default value) -> Group -> User, the lowest object value overrides upper values applied to it
+labs:
+  example-lab:
+    # Internal ID is required, each id for lab should be unique per instance of the tool setup, it should be safe to start from 0 but I'd not recommend it, just in case.
+    internal-id: 1
+    groups:
+      example-group:
+        # Permit option, determines if the script should set NoAccess to the pool that's automatically created for each user's lab
+        # true value means that NoAccess is not applied, and the PVEPoolAudit role is applied instead
+        # default: true
+        permit: true
+        # Managed option, determines if the script can anyhow affect user's lab directory, e.g. overwrite main.tf from lab config when deploying or any other operations with specified lab for user
+        # true value means that script can and will perform actions on lab's dir
+        # default: true
+        managed: false
+        # Destroy option, determines if the script will try to destroy lab for all users of the group or specified user
+        # default: false
+        destroy: false
+        members:
+          - name: UserEX
+            # In this example it means, that after deploying the lab User would be assigned NoAccess role on pool, e.g. won't see the pool and any members of it
+            permit: false
+            # In this example it means that lab won't be deployed for the user at all on first deploy, or won't be affected by changing lab's configuration later if set after deploy
+            managed: false
+            # In this example it means that script would try to destroy the lab upon calling destroy, but as the managed is set to false, it won't do anything
+            destroy: true

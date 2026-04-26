@@ -1,0 +1,8 @@
+.venv/
+backups/
+groups/
+passwords/
+terraform/providers_cache
+python/__pycache__/
+.idea/
+.git/
