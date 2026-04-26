@@ -1,0 +1,3 @@
+PyYAML==6.0.3
+proxmoxer==2.3.0
+requests==2.33.1

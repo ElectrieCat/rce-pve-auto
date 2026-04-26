@@ -14,7 +14,7 @@ Also, you must have python3 installed
 
 ### Installing requirements and verifying terraform availability
 ```
-python3 requirements.py 
+pip install -r requirements.txt 
 ```
 ### Usage
 ```
