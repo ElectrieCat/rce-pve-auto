@@ -8,39 +8,28 @@ from python.terraform_utils import run_terraform_apply, run_terraform_plan, run_
 def get_user_lab_status(lab_config: dict, group_name: str, user_name: str):
     """
     Resolves the effective (permit, managed, destroy) flags for a user in a lab.
-    Hierarchy: defaults -> group-level -> member-level (each layer overrides the one above).
+    Hierarchy: group-level -> member-level (member overrides group).
 
-    If the group is not explicitly listed in the lab config, defaults are used and
-    a warning is printed so the operator knows the user was not explicitly configured.
+    Returns (permit=True, managed=False, destroy=False) if the group is not
+    explicitly listed in the lab config — managed=False means the lab will not
+    be deployed for this group at all, which is the safe default when a group
+    has not been explicitly configured for a lab.
     """
-    permit, managed, destroy = True, True, False
-
+    # Group not listed in this lab config at all — do not deploy for them.
     group_settings = lab_config.get('groups', {}).get(group_name)
     if group_settings is None:
-        print(
-            f"[WARNING] Group '{group_name}' is not listed in lab config. "
-            f"Applying defaults (permit=True, managed=True, destroy=False)."
-        )
-        return permit, managed, destroy
+        return True, False, False
 
-    permit = group_settings.get('permit', permit)
-    managed = group_settings.get('managed', managed)
-    destroy = group_settings.get('destroy', destroy)
+    permit  = group_settings.get('permit',  True)
+    managed = group_settings.get('managed', True)
+    destroy = group_settings.get('destroy', False)
 
-    member_found = False
     for member in group_settings.get('members', []):
         if member.get('name') == user_name:
-            permit = member.get('permit', permit)
+            permit  = member.get('permit',  permit)
             managed = member.get('managed', managed)
             destroy = member.get('destroy', destroy)
-            member_found = True
             break
-
-    if not member_found:
-        print(
-            f"[WARNING] User '{user_name}' is not listed under group '{group_name}' in lab config. "
-            f"Applying group-level settings."
-        )
 
     return permit, managed, destroy
 
@@ -258,32 +247,56 @@ def terraform_run_lab(
         print(f"[*] No eligible lab directories found for '{lab_name}' with the given filters.")
 
 
-def destroy_lab(lab_name: str, users_config: dict, plan_only: bool = False):
-    """Destroys labs that are marked with destroy: true for each user."""
+def destroy_lab(lab_name: str, users_config: dict, plan_only: bool = False) -> bool:
+    """
+    Destroys labs that are marked with destroy: true for each user.
+
+    In plan_only mode, shows what would be destroyed without making any changes.
+    The directory check is skipped in plan mode so the operator sees the full
+    picture from config even if the lab has never been deployed.
+
+    Returns True if any labs are scheduled for destruction (whether or not
+    plan_only is set), so the CLI knows whether to ask for confirmation.
+    """
     labs_matrix = load_labs_matrix()
     lab_info = labs_matrix.get(lab_name)
     if not lab_info:
         print(f"[ERROR] Lab '{lab_name}' not found in labs.yaml")
-        return
+        return False
+
+    # Collect per-group skip summaries to avoid one line per user.
+    # Structure: { group_name: { "unmanaged": [users], "kept": [users] } }
+    skips: dict = {}
+    found_any = False
 
     for group_name, group_info in users_config.items():
         for user_name in group_info['members'].keys():
             permit, managed, destroy = get_user_lab_status(lab_info, group_name, user_name)
-
             lab_dir = os.path.join("groups", group_name, "users", user_name, "labs", lab_name)
-            if not os.path.exists(lab_dir):
+
+            # In apply mode, skip users whose lab directory doesn't exist yet.
+            # In plan mode, always evaluate so the operator sees the full config picture.
+            if not plan_only and not os.path.exists(lab_dir):
                 continue
 
             if not managed:
-                print(f"[SKIP] Lab '{lab_name}' for '{user_name}' is unmanaged. Manual action required.")
+                skips.setdefault(group_name, {"unmanaged": [], "kept": []})["unmanaged"].append(user_name)
                 continue
 
             if not destroy:
-                print(f"[KEEP] Lab '{lab_name}' for '{user_name}' is protected (destroy: false).")
+                skips.setdefault(group_name, {"unmanaged": [], "kept": []})["kept"].append(user_name)
                 continue
 
+            found_any = True
             if plan_only:
-                run_terraform_destroy_plan(lab_dir)
+                if os.path.exists(lab_dir):
+                    print(f"[PLAN] Would destroy lab '{lab_name}' for '{user_name}' ({group_name}):")
+                    run_terraform_destroy_plan(lab_dir)
+                else:
+                    print(
+                        f"[PLAN] Would destroy lab '{lab_name}' for '{user_name}' ({group_name}) "
+                        f"— directory does not exist yet, nothing to destroy."
+                    )
             else:
                 print(f"[!] DESTROYING lab '{lab_name}' for '{user_name}'...")
                 if run_terraform_destroy(lab_dir):
@@ -291,3 +304,17 @@ def destroy_lab(lab_name: str, users_config: dict, plan_only: bool = False):
                     print(f"[SUCCESS] Lab directory removed for '{user_name}'.")
                 else:
                     print(f"[ERROR] Terraform destroy failed for '{user_name}'. Directory preserved.")
+
+    # Print one summary line per group for skipped users
+    for group_name, buckets in skips.items():
+        if buckets["unmanaged"]:
+            users = ", ".join(buckets["unmanaged"])
+            print(f"[SKIP] {group_name}: {users} — unmanaged, manual action required.")
+        if buckets["kept"]:
+            users = ", ".join(buckets["kept"])
+            print(f"[KEEP] {group_name}: {users} — destroy=false, protected.")
+
+    if not found_any and not skips:
+        print(f"[*] No labs found for '{lab_name}' matching destroy=true.")
+
+    return found_any

@@ -184,20 +184,23 @@ def _user_has_active_labs(user_path: str) -> bool:
     return False
 
 
-def cleanup_orphaned_users(group_name: str, config: dict, plan_only: bool = False):
+def cleanup_orphaned_users(group_name: str, config: dict, plan_only: bool = False) -> bool:
     """
     Removes users from Proxmox and disk if they are no longer in config
     and have no active labs remaining.
 
     In plan_only mode, runs terraform plan -destroy to show what would be
     removed without actually deleting anything.
+
+    Returns True if any orphans were found (regardless of plan_only mode).
     """
     group_dir = os.path.join("groups", group_name)
     users_base_dir = os.path.join(group_dir, "users")
     if not os.path.exists(users_base_dir):
-        return
+        return False
 
     active_users = config[group_name]["members"].keys() if group_name in config else []
+    found_any = False
 
     for user_dir_name in os.listdir(users_base_dir):
         if user_dir_name in active_users:
@@ -207,6 +210,7 @@ def cleanup_orphaned_users(group_name: str, config: dict, plan_only: bool = Fals
         if _user_has_active_labs(user_path):
             continue
 
+        found_any = True
         if plan_only:
             print(f"[PLAN] Orphaned user '{user_dir_name}' would be destroyed:")
             run_terraform_destroy_plan(user_path)
@@ -219,26 +223,32 @@ def cleanup_orphaned_users(group_name: str, config: dict, plan_only: bool = Fals
     if not plan_only:
         export_csv(group_name, group_dir)
 
+    return found_any
 
-def cleanup_orphaned_groups(config: dict, plan_only: bool = False):
+
+def cleanup_orphaned_groups(config: dict, plan_only: bool = False) -> bool:
     """
     Removes groups from Proxmox and disk if they are no longer in config
     and all their users have been cleaned up.
 
     In plan_only mode, runs terraform plan -destroy to show what would be
     removed without actually deleting anything.
+
+    Returns True if any orphans were found (regardless of plan_only mode).
     """
     groups_base_dir = "groups"
     if not os.path.exists(groups_base_dir):
-        return
+        return False
 
     active_groups = config.keys()
+    found_any = False
 
     for group_name in os.listdir(groups_base_dir):
         if group_name in active_groups:
             continue
 
         group_path = os.path.join(groups_base_dir, group_name)
+        found_any = True
         print(f"[!] Found orphaned group '{group_name}'. Checking for remaining users...")
 
         cleanup_orphaned_users(group_name, config, plan_only=plan_only)
@@ -273,6 +283,8 @@ def cleanup_orphaned_groups(config: dict, plan_only: bool = False):
                 print(f"[SUCCESS] Password file '{csv_path}' removed.")
 
             print(f"[SUCCESS] Group '{group_name}' removed completely.")
+
+    return found_any
 
 
 # ---------------------------------------------------------------------------

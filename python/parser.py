@@ -96,6 +96,30 @@ def load_users_config(config_path="configs/users.yaml"):
             'members': parsed_members
         }
 
+    # Validate that internal-id values are unique across ALL users in ALL groups.
+    # Duplicate IDs cause bridge name collisions (u{id}l{lab}n{net}) which silently
+    # breaks network isolation between users.
+    seen_ids = {}  # internal_id -> "group/username" for clear error reporting
+    valid = True
+    for group_name, group_data in parsed_groups.items():
+        for member_name, member_data in group_data['members'].items():
+            uid = member_data.get('internal_id')
+            if uid is None:
+                continue
+            key = f"{group_name}/{member_name}"
+            if uid in seen_ids:
+                print(
+                    f"[ERROR] Duplicate internal-id '{uid}' found: "
+                    f"'{key}' and '{seen_ids[uid]}' share the same ID. "
+                    f"This will cause bridge name collisions. Fix users.yaml before deploying."
+                )
+                valid = False
+            else:
+                seen_ids[uid] = key
+
+    if not valid:
+        return None
+
     return parsed_groups
 
 
@@ -108,6 +132,29 @@ def load_labs_matrix(path="configs/labs.yaml"):
     labs = data.get('labs')
     if not labs:
         print(f"[WARNING] No 'labs' section found in '{path}'.")
+        return {}
+
+    # Validate that lab internal-ids are unique. They combine with user internal-ids
+    # to form bridge names, so a collision would corrupt network naming.
+    seen_ids = {}
+    valid = True
+    for lab_name, lab_info in labs.items():
+        if not lab_info:
+            continue
+        lid = lab_info.get('internal-id')
+        if lid is None:
+            continue
+        if lid in seen_ids:
+            print(
+                f"[ERROR] Duplicate internal-id '{lid}' found in labs.yaml: "
+                f"'{lab_name}' and '{seen_ids[lid]}' share the same ID. "
+                f"This will cause bridge name collisions. Fix labs.yaml before deploying."
+            )
+            valid = False
+        else:
+            seen_ids[lid] = lab_name
+
+    if not valid:
         return {}
 
     return labs

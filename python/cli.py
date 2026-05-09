@@ -79,7 +79,7 @@ def setup_cli():
         help=(
             "Override managed=false for labs in --lab mode, running the command "
             "even on unmanaged lab directories. Has no effect with --dir. "
-            "Use with caution — labs are probably marked unmanaged for a reason."
+            "Use with caution — unmanaged labs exist for a reason."
         )
     )
     tf_parser.add_argument(
@@ -104,6 +104,20 @@ def _load_users_or_exit(config_path="configs/users.yaml") -> dict:
     return parsed
 
 
+def _confirm_destroy(prompt: str) -> bool:
+    """
+    Asks the operator to confirm a destructive operation by typing the word 'destroy'.
+    Returns True if confirmed, False if cancelled.
+    Using a specific word rather than yes/no makes accidental confirmation harder.
+    """
+    print(f"[!] {prompt}")
+    answer = input("    Type 'destroy' to confirm, anything else to cancel: ").strip()
+    if answer == 'destroy':
+        return True
+    print("[*] Operation cancelled.")
+    return False
+
+
 def run():
     args = setup_cli()
 
@@ -122,6 +136,17 @@ def run():
         parsed = _load_users_or_exit()
 
         print("[*] Checking for orphaned groups...")
+        if not args.plan:
+            # Scan first (plan_only=True) so the operator sees what would be
+            # destroyed, then only ask for confirmation if anything was found.
+            from python.deploy_users import cleanup_orphaned_groups as _scan
+            has_orphans = _scan(parsed, plan_only=True)
+            if has_orphans:
+                if not _confirm_destroy(
+                    "The above orphaned resources will be permanently destroyed. "
+                    "Run with --plan to review only."
+                ):
+                    sys.exit(0)
         cleanup_orphaned_groups(parsed, plan_only=args.plan)
 
         if args.group not in parsed:
@@ -152,6 +177,13 @@ def run():
         from python.deploy_labs import destroy_lab
 
         parsed = _load_users_or_exit()
+        if not args.plan:
+            # Show the destroy plan first so the operator knows what will be removed
+            destroy_lab(args.lab, parsed, plan_only=True)
+            if not _confirm_destroy(
+                f"Lab '{args.lab}' resources marked above will be permanently destroyed."
+            ):
+                sys.exit(0)
         destroy_lab(args.lab, parsed, plan_only=args.plan)
 
     elif args.command == "backup":
