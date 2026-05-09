@@ -7,7 +7,7 @@ labs:
     groups:
       example-group:
         # Permit option, determines if the script should set NoAccess to the pool that's automatically created for each user's lab
-        # true value means that NoAccess is not applied, and the PVEPoolAudit role is applied instead
+        # true value means that NoAccess is not applied, and the PVEPoolUser role is applied instead
         # default: true
         permit: true
         # Managed option, determines if the script can anyhow affect user's lab directory, e.g. overwrite main.tf from lab config when deploying or any other operations with specified lab for user

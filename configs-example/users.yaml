@@ -21,7 +21,8 @@ users:
         - name: UserEX
           # Enabled option, overrides upper options
           enabled: true
-          # Required to specify, shoud be unique among all users per script installation instance, it must be safe to use 0 as the first id according to code, but just in case it's better to start from 1
+          # !!! IMPORTANT INFO !!!
+          # Required to specify, must be unique among all users per script installation instance and node, it must be safe to use 0 as the first id according to code, but just in case it's better to start from 1
           internal-id: 1
           # User comment option, optional to declare
           # default: "Managed by automation tool"

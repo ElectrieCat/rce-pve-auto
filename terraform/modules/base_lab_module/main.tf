@@ -4,13 +4,13 @@ terraform {
   }
 }
 
-# Создаем пул ресурсов
+# Creating pool
 resource "proxmox_virtual_environment_pool" "pool" {
   pool_id = var.pool_id
   comment = "Lab managed by automation for ${var.user_name}"
 }
 
-# Вызываем сетевой модуль
+# Network module calling
 module "network" {
   source          = "../network_module"
   node_name       = var.node_name
@@ -21,10 +21,10 @@ resource "proxmox_acl" "pool_access" {
   user_id = "${var.user_name}@pve"
   path    = "/pool/${proxmox_virtual_environment_pool.pool.pool_id}"
 
-  # Если permit=true, даем права пользователя ВМ, иначе - NoAccess
+  # Assign PVEPoolUser if permit=true, else - NoAccess
   role_id = var.permit ? "PVEPoolUser" : "NoAccess"
 
-  # Ждем, когда создастся пул, прежде чем вешать на него права
+  # Wait till the pool is created before assigning acl to it
   depends_on = [proxmox_virtual_environment_pool.pool]
 }
 
