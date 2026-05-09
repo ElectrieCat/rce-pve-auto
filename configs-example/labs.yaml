@@ -24,4 +24,4 @@ labs:
             # In this example it means that lab won't be deployed for the user at all on first deploy, or won't be affected by changing lab's configuration later if set after deploy
             managed: false
             # In this example it means that script would try to destroy the lab upon calling destroy, but as the managed is set to false, it won't do anything
-            destroy: false
+            destroy: true
