@@ -13,12 +13,12 @@ resource "proxmox_virtual_environment_vm" "example-vm" {
   # Here we call pve-locals node variable
   node_name = var.pve_locals.node
   # VM name format that is being created on proxmox node
-  name      = "EX_VM-${var.user_name}-${var.group_name}"
+  name      = "EX-VM-${var.user_name}-${var.group_name}"
   pool_id   = module.base.pool_id
 
   # Linked clone VM-ID, just in this example for ease
   clone {
-    vm_id = 47
+    vm_id = 100
     datastore_id = var.pve_locals.storage
   }
 

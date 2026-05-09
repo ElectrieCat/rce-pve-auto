@@ -2,31 +2,59 @@ import yaml
 import os
 
 
-def load_auth_config(auth_path="configs/auth.yaml"):
-    """Reads auth.yaml and returns the proxmox configuration section."""
-    if not os.path.exists(auth_path):
-        print(f"[ERROR] Auth file '{auth_path}' not found.")
+def _safe_yaml_load(path):
+    """
+    Opens and parses a YAML file at the given path.
+    Returns parsed data on success, None on any failure (missing file, bad syntax, etc.).
+    """
+    if not os.path.exists(path):
+        print(f"[ERROR] File not found: '{path}'")
         return None
 
-    with open(auth_path, 'r', encoding='utf-8') as file:
-        data = yaml.safe_load(file) or {}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        print(f"[ERROR] Failed to parse YAML file '{path}': {e}")
+        return None
+    except OSError as e:
+        print(f"[ERROR] Could not read file '{path}': {e}")
+        return None
 
-    return data.get('proxmox', {})
+    if data is None:
+        print(f"[WARNING] File '{path}' is empty.")
+
+    return data
+
+
+def load_auth_config(auth_path="configs/auth.yaml"):
+    """Reads auth.yaml and returns the proxmox configuration section."""
+    data = _safe_yaml_load(auth_path)
+    if data is None:
+        return None
+
+    proxmox_cfg = data.get('proxmox')
+    if not proxmox_cfg:
+        print(f"[ERROR] 'proxmox' section is missing in '{auth_path}'.")
+        return None
+
+    return proxmox_cfg
 
 
 def load_users_config(config_path="configs/users.yaml"):
-    """Reads users.yaml and returns a parsed dictionary with inheritance resolved."""
-    if not os.path.exists(config_path):
-        print(f"[ERROR] Configuration file '{config_path}' not found.")
+    """
+    Reads users.yaml and returns a parsed dictionary with inheritance resolved.
+    Returns an empty dict if the file has no groups defined.
+    Returns None on any read or parse error.
+    """
+    data = _safe_yaml_load(config_path)
+    if data is None:
         return None
 
-    with open(config_path, 'r', encoding='utf-8') as file:
-        data = yaml.safe_load(file) or {}
-
-    if not data or 'users' not in data:
+    if 'users' not in data:
+        print(f"[WARNING] No 'users' section found in '{config_path}'. Nothing to process.")
         return {}
 
-    # Read default password policy
     defaults = data.get('defaults') or {}
     default_pwd_policy = defaults.get('password-strength') or {}
 
@@ -41,7 +69,7 @@ def load_users_config(config_path="configs/users.yaml"):
         group_enabled = group_info.get('enabled', True)
         group_comment = group_info.get('comment', 'Managed by automation tool')
 
-        # Password policy inheritance
+        # Password policy: group settings override global defaults
         group_pwd_policy = group_info.get('password-strength') or {}
         final_pwd_policy = {**default_pwd_policy, **group_pwd_policy}
 
@@ -70,19 +98,26 @@ def load_users_config(config_path="configs/users.yaml"):
 
     return parsed_groups
 
+
 def load_labs_matrix(path="configs/labs.yaml"):
-    """Reads labs.yaml to understand who gets which lab."""
-    if not os.path.exists(path):
+    """Reads labs.yaml and returns the full labs dictionary."""
+    data = _safe_yaml_load(path)
+    if data is None:
         return {}
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f) or {}
-    return data.get('labs', {})
+
+    labs = data.get('labs')
+    if not labs:
+        print(f"[WARNING] No 'labs' section found in '{path}'.")
+        return {}
+
+    return labs
+
 
 def load_lab_config(lab_name):
-    """Reads main.yaml for a specific lab."""
+    """Reads main.yaml for a specific lab and returns its contents."""
     path = f"configs/labs/{lab_name}/main.yaml"
-    if not os.path.exists(path):
-        print(f"[ERROR] Lab config not found for {lab_name}: {path}")
+    data = _safe_yaml_load(path)
+    if data is None:
         return {}
-    with open(path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f) or {}
+
+    return data

@@ -2,28 +2,53 @@ import os
 import json
 import shutil
 from python.parser import load_labs_matrix, load_lab_config
-from python.terraform_utils import run_terraform, run_terraform_plan, run_terraform_destroy, run_terraform_destroy_plan
+from python.terraform_utils import run_terraform_apply, run_terraform_plan, run_terraform_destroy, run_terraform_destroy_plan
 
 
-def get_user_lab_status(lab_config, group_name, user_name):
-    """Hierarchy: Default -> Group -> Member (overrides)"""
+def get_user_lab_status(lab_config: dict, group_name: str, user_name: str):
+    """
+    Resolves the effective (permit, managed, destroy) flags for a user in a lab.
+    Hierarchy: defaults -> group-level -> member-level (each layer overrides the one above).
+
+    If the group is not explicitly listed in the lab config, defaults are used and
+    a warning is printed so the operator knows the user was not explicitly configured.
+    """
     permit, managed, destroy = True, True, False
-    group_settings = lab_config.get('groups', {}).get(group_name, {})
-    if group_settings:
-        permit = group_settings.get('permit', True)
-        managed = group_settings.get('managed', True)
-        destroy = group_settings.get('destroy', False)
-        for member in group_settings.get('members', []):
-            if member.get('name') == user_name:
-                permit = member.get('permit', permit)
-                managed = member.get('managed', managed)
-                destroy = member.get('destroy', destroy)
-                break
+
+    group_settings = lab_config.get('groups', {}).get(group_name)
+    if group_settings is None:
+        print(
+            f"[WARNING] Group '{group_name}' is not listed in lab config. "
+            f"Applying defaults (permit=True, managed=True, destroy=False)."
+        )
+        return permit, managed, destroy
+
+    permit = group_settings.get('permit', permit)
+    managed = group_settings.get('managed', managed)
+    destroy = group_settings.get('destroy', destroy)
+
+    member_found = False
+    for member in group_settings.get('members', []):
+        if member.get('name') == user_name:
+            permit = member.get('permit', permit)
+            managed = member.get('managed', managed)
+            destroy = member.get('destroy', destroy)
+            member_found = True
+            break
+
+    if not member_found:
+        print(
+            f"[WARNING] User '{user_name}' is not listed under group '{group_name}' in lab config. "
+            f"Applying group-level settings."
+        )
+
     return permit, managed, destroy
 
 
-def deploy_lab(lab_name, users_config, plan_only=False):
-    # 1. Load Matrix
+def deploy_lab(lab_name: str, users_config: dict, plan_only: bool = False):
+    """Deploys a lab for all eligible users across all groups."""
+
+    # 1. Load lab matrix entry
     labs_matrix = load_labs_matrix()
     lab_info = labs_matrix.get(lab_name)
     if not lab_info:
@@ -32,28 +57,28 @@ def deploy_lab(lab_name, users_config, plan_only=False):
 
     lab_id = lab_info.get('internal-id')
     if lab_id is None:
-        print(f"[ERROR] Lab '{lab_name}' has no 'internal-id' in labs.yaml!")
+        print(f"[ERROR] Lab '{lab_name}' has no 'internal-id' in labs.yaml.")
         return
 
-    # 2. Load and Validate Lab Config (main.yaml)
+    # 2. Load and validate lab config (main.yaml)
     lab_full_config = load_lab_config(lab_name)
     if not lab_full_config:
+        print(f"[ERROR] Lab config (main.yaml) for '{lab_name}' is missing or empty. Aborting.")
         return
 
-    # --- STRICT VALIDATION FOR LOCALS ---
     pve_locals_config = lab_full_config.get('pve-locals')
     if not pve_locals_config:
-        print(f"[ERROR] 'pve-locals' section is missing in main.yaml for lab '{lab_name}'")
+        print(f"[ERROR] 'pve-locals' section is missing in main.yaml for lab '{lab_name}'.")
         return
 
     storage = pve_locals_config.get('storage')
     node = pve_locals_config.get('node')
 
     if not storage:
-        print(f"[ERROR] 'storage' is not defined in pve-locals for lab '{lab_name}'. Action aborted for safety.")
+        print(f"[ERROR] 'storage' is not defined in pve-locals for lab '{lab_name}'. Aborting.")
         return
     if not node:
-        print(f"[ERROR] 'node' is not defined in pve-locals for lab '{lab_name}'. Action aborted for safety.")
+        print(f"[ERROR] 'node' is not defined in pve-locals for lab '{lab_name}'. Aborting.")
         return
 
     pve_locals = {"storage": storage, "node": node}
@@ -61,36 +86,42 @@ def deploy_lab(lab_name, users_config, plan_only=False):
 
     snap_config = lab_full_config.get('snapshots', {})
     snap_create = snap_config.get('create', False)
-    snap_ram = snap_config.get('include-ram', False)
+    snap_ram = bool(snap_config.get('include-ram', False))   # enforce bool here, at parse time
     snap_name = snap_config.get('name')
-    snap_description = snap_config.get('description')
+    snap_description = snap_config.get('description', "Auto Snapshot")
 
-    # validate the snapshots configs
-    if snap_create and not snap_config.get('name'):
-        print(f"[ERROR] You have to specify 'name' for snapshot in lab '{lab_name}'")
+    if snap_create and not snap_name:
+        print(f"[ERROR] Snapshot 'name' is required when 'create: true' in lab '{lab_name}'.")
         return
 
+    # 3. User loop
+    if not users_config:
+        print("[ERROR] No users found in configuration. Nothing to deploy.")
+        return
 
-    # 3. User Loop
+    print(f"[*] Deploying lab '{lab_name}'...")
+
     for group_name, group_info in users_config.items():
         for user_name, user_data in group_info['members'].items():
             permit, managed, destroy = get_user_lab_status(lab_info, group_name, user_name)
 
-            if not managed or destroy:
-                if destroy: print(
-                    f"[SKIP] Lab {lab_name} for {user_name} is marked for destroy. Use 'destroy-lab' command.")
+            if not managed:
+                print(f"[SKIP] Lab '{lab_name}' for '{user_name}' in group '{group_name}': managed=false in labs.yaml.")
+                continue
+            if destroy:
+                print(f"[SKIP] Lab '{lab_name}' for '{user_name}' in group '{group_name}': marked for destroy. Use 'destroy-lab'.")
                 continue
 
             user_idx = user_data.get('internal_id')
             if user_idx is None:
-                print(f"[ERROR] User '{user_name}' has no 'internal-id' in users.yaml!")
+                print(f"[ERROR] User '{user_name}' has no 'internal-id' in users.yaml. Skipping.")
                 continue
 
             user_dir = os.path.join("groups", group_name, "users", user_name)
             lab_dir = os.path.join(user_dir, "labs", lab_name)
             os.makedirs(lab_dir, exist_ok=True)
 
-            # 4. Generate Network Config (FIX: Underscores for TF compatibility)
+            # 4. Build network config
             tf_networks = {}
             for i, (net_key, net_params) in enumerate(nets_config.items(), 1):
                 real_bridge_name = f"u{user_idx}l{lab_id}n{i}"
@@ -98,16 +129,13 @@ def deploy_lab(lab_name, users_config, plan_only=False):
                     "real_name": real_bridge_name,
                     "type": net_params.get('type', 'local-bridge'),
                     "autostart": net_params.get('autostart', True),
-                    # not yet possible due to bpg limitations
-                    #"vlan_aware": net_params.get('vlan-aware', False),  # Changed to _
-                    #"vlan_id": net_params.get('vlans', ""),
                     "mtu": net_params.get('mtu', 1500),
-                    "bridge_ports": net_params.get('bridge-ports', ""),  # Changed to _
+                    "bridge_ports": net_params.get('bridge-ports', ""),
                     "comment": net_params.get('comment') or f"{group_name}_{user_name}_{lab_name}_{net_key}",
-                    "ipv4_cidr": net_params.get('ipv4-cidr'),  # Changed to _
-                    "ipv4_gw": net_params.get('ipv4-gw'),  # Changed to _
-                    "ipv6_cidr": net_params.get('ipv6-cidr'),  # Changed to _
-                    "ipv6_gw": net_params.get('ipv6-gw')  # Changed to _
+                    "ipv4_cidr": net_params.get('ipv4-cidr'),
+                    "ipv4_gw": net_params.get('ipv4-gw'),
+                    "ipv6_cidr": net_params.get('ipv6-cidr'),
+                    "ipv6_gw": net_params.get('ipv6-gw'),
                 }
 
             lab_tfvars = {
@@ -117,43 +145,108 @@ def deploy_lab(lab_name, users_config, plan_only=False):
                 "pool_id": f"{group_name}_{user_name}_{lab_name}",
                 "permit": permit,
                 "networks": tf_networks,
-                "pve_locals": pve_locals
+                "pve_locals": pve_locals,
             }
 
             with open(os.path.join(lab_dir, "terraform.tfvars.json"), 'w') as f:
                 json.dump(lab_tfvars, f, indent=4)
 
-            # 5. Copy .tf files
+            # 5. Copy .tf files from lab config directory
             lab_config_dir = os.path.join("configs", "labs", lab_name)
             tf_files_found = False
             if os.path.exists(lab_config_dir):
                 for file_name in os.listdir(lab_config_dir):
                     if file_name.endswith(".tf"):
-                        shutil.copy(os.path.join(lab_config_dir, file_name), os.path.join(lab_dir, file_name))
+                        shutil.copy(
+                            os.path.join(lab_config_dir, file_name),
+                            os.path.join(lab_dir, file_name)
+                        )
                         tf_files_found = True
 
-            # 6. Run Terraform ONCE per user
-            if tf_files_found:
-                if plan_only:
-                    run_terraform_plan(lab_dir)
-                else:
-                    print(f"[*] Deploying lab for {user_name}...")
-                    run_terraform(lab_dir)
+            if not tf_files_found:
+                print(f"[WARNING] No .tf files found in '{lab_config_dir}'. Skipping '{user_name}'.")
+                continue
 
-                    if snap_create:
-                        from python.snapshots import create_initial_snapshot
-                        create_initial_snapshot(
-                            lab_dir=lab_dir,
-                            node_name=node,
-                            snap_name=snap_name,
-                            include_ram=snap_ram,
-                            description=snap_description
-                        )
+            # 6. Run Terraform
+            if plan_only:
+                run_terraform_plan(lab_dir)
             else:
-                print(f"[WARNING] No .tf files found in {lab_config_dir}")
+                print(f"[*] Deploying lab '{lab_name}' for '{user_name}'...")
+                if run_terraform_apply(lab_dir) and snap_create:
+                    from python.snapshots import create_initial_snapshot
+                    create_initial_snapshot(
+                        lab_dir=lab_dir,
+                        node_name=node,
+                        snap_name=snap_name,
+                        include_ram=snap_ram,
+                        description=snap_description,
+                    )
 
-def destroy_lab(lab_name, users_config, plan_only=False):
-    """Handles ONLY destruction with detailed feedback for each user."""
+
+def terraform_run_lab(
+    lab_name: str,
+    users_config: dict,
+    tf_args: list,
+    filter_group: str = None,
+    filter_user: str = None,
+):
+    """
+    Runs custom Terraform arguments against every managed lab directory for
+    the given lab_name, optionally scoped to a specific group and/or user.
+
+    Unmanaged labs are always skipped — if a user needs to run terraform on
+    an unmanaged lab they must do it manually in the directory itself.
+
+    Args:
+        lab_name:     Name of the lab as defined in labs.yaml.
+        users_config: Parsed users config dict.
+        tf_args:      Terraform arguments to pass after 'init', e.g.
+                      ["plan", "-target=proxmox_virtual_environment_vm.example-vm"].
+        filter_group: If set, only process users in this group.
+        filter_user:  If set, only process this specific user (requires filter_group).
+    """
+    from python.terraform_utils import run_terraform_custom
+
+    labs_matrix = load_labs_matrix()
+    lab_info = labs_matrix.get(lab_name)
+    if not lab_info:
+        print(f"[ERROR] Lab '{lab_name}' not found in labs.yaml.")
+        return
+
+    ran_any = False
+
+    for group_name, group_info in users_config.items():
+        if filter_group and group_name != filter_group:
+            continue
+
+        for user_name in group_info['members'].keys():
+            if filter_user and user_name != filter_user:
+                continue
+
+            _permit, managed, _destroy = get_user_lab_status(lab_info, group_name, user_name)
+
+            if not managed:
+                print(
+                    f"[SKIP] Lab '{lab_name}' for '{user_name}' is unmanaged. "
+                    f"Run terraform manually in the directory if needed."
+                )
+                continue
+
+            lab_dir = os.path.join("groups", group_name, "users", user_name, "labs", lab_name)
+            if not os.path.exists(lab_dir):
+                print(f"[SKIP] Lab directory not found for '{user_name}': {lab_dir}")
+                continue
+
+            print(f"[*] Running terraform {' '.join(tf_args)} for '{user_name}' in {lab_dir}...")
+            run_terraform_custom(lab_dir, *tf_args)
+            ran_any = True
+
+    if not ran_any:
+        print(f"[*] No eligible lab directories found for '{lab_name}' with the given filters.")
+
+
+def destroy_lab(lab_name: str, users_config: dict, plan_only: bool = False):
+    """Destroys labs that are marked with destroy: true for each user."""
     labs_matrix = load_labs_matrix()
     lab_info = labs_matrix.get(lab_name)
     if not lab_info:
@@ -165,27 +258,23 @@ def destroy_lab(lab_name, users_config, plan_only=False):
             permit, managed, destroy = get_user_lab_status(lab_info, group_name, user_name)
 
             lab_dir = os.path.join("groups", group_name, "users", user_name, "labs", lab_name)
-
-            # Если папки физически нет, нам нечего обсуждать для этого юзера
             if not os.path.exists(lab_dir):
                 continue
 
-            # Логика уведомлений
             if not managed:
-                print(f"[SKIP] Lab '{lab_name}' for '{user_name}' is UNMANAGED. Manual action required.")
+                print(f"[SKIP] Lab '{lab_name}' for '{user_name}' is unmanaged. Manual action required.")
                 continue
 
             if not destroy:
                 print(f"[KEEP] Lab '{lab_name}' for '{user_name}' is protected (destroy: false).")
                 continue
 
-            # Если дошли сюда, значит managed: true И destroy: true
             if plan_only:
                 run_terraform_destroy_plan(lab_dir)
             else:
                 print(f"[!] DESTROYING lab '{lab_name}' for '{user_name}'...")
                 if run_terraform_destroy(lab_dir):
                     shutil.rmtree(lab_dir)
-                    print(f"[SUCCESS] Folder removed for {user_name}")
+                    print(f"[SUCCESS] Lab directory removed for '{user_name}'.")
                 else:
-                    print(f"[ERROR] Terraform destroy failed for {user_name}. Directory preserved.")
+                    print(f"[ERROR] Terraform destroy failed for '{user_name}'. Directory preserved.")
