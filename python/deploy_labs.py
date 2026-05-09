@@ -125,10 +125,15 @@ def deploy_lab(lab_name: str, users_config: dict, plan_only: bool = False):
             tf_networks = {}
             for i, (net_key, net_params) in enumerate(nets_config.items(), 1):
                 real_bridge_name = f"u{user_idx}l{lab_id}n{i}"
+                vlan_aware = net_params.get('vlan-aware', False)
                 tf_networks[net_key] = {
                     "real_name": real_bridge_name,
                     "type": net_params.get('type', 'local-bridge'),
                     "autostart": net_params.get('autostart', True),
+                    "vlan_aware": vlan_aware,
+                    # vids is only passed when vlan_aware is true; empty string otherwise
+                    # so the Terraform variable always has a value to receive.
+                    "vids": net_params.get('vlans', "") if vlan_aware else "",
                     "mtu": net_params.get('mtu', 1500),
                     "bridge_ports": net_params.get('bridge-ports', ""),
                     "comment": net_params.get('comment') or f"{group_name}_{user_name}_{lab_name}_{net_key}",
@@ -189,21 +194,23 @@ def terraform_run_lab(
     tf_args: list,
     filter_group: str = None,
     filter_user: str = None,
+    force_managed: bool = False,
 ):
     """
-    Runs custom Terraform arguments against every managed lab directory for
-    the given lab_name, optionally scoped to a specific group and/or user.
+    Runs custom Terraform arguments against lab directories for the given
+    lab_name, optionally scoped to a specific group and/or user.
 
-    Unmanaged labs are always skipped — if a user needs to run terraform on
-    an unmanaged lab they must do it manually in the directory itself.
+    Unmanaged labs are skipped unless force_managed=True is passed, in which
+    case the managed flag is ignored and the command runs regardless.
+    This is intentionally only available via terraform-run, not deploy/destroy.
 
     Args:
-        lab_name:     Name of the lab as defined in labs.yaml.
-        users_config: Parsed users config dict.
-        tf_args:      Terraform arguments to pass after 'init', e.g.
-                      ["plan", "-target=proxmox_virtual_environment_vm.example-vm"].
-        filter_group: If set, only process users in this group.
-        filter_user:  If set, only process this specific user (requires filter_group).
+        lab_name:      Name of the lab as defined in labs.yaml.
+        users_config:  Parsed users config dict.
+        tf_args:       Terraform arguments to pass after 'init'.
+        filter_group:  If set, only process users in this group.
+        filter_user:   If set, only process this specific user (requires filter_group).
+        force_managed: If True, run even on unmanaged lab directories.
     """
     from python.terraform_utils import run_terraform_custom
 
@@ -226,11 +233,17 @@ def terraform_run_lab(
             _permit, managed, _destroy = get_user_lab_status(lab_info, group_name, user_name)
 
             if not managed:
-                print(
-                    f"[SKIP] Lab '{lab_name}' for '{user_name}' is unmanaged. "
-                    f"Run terraform manually in the directory if needed."
-                )
-                continue
+                if force_managed:
+                    print(
+                        f"[WARN] Lab '{lab_name}' for '{user_name}' is unmanaged — "
+                        f"running anyway because --force-managed was specified."
+                    )
+                else:
+                    print(
+                        f"[SKIP] Lab '{lab_name}' for '{user_name}' is unmanaged. "
+                        f"Use --force-managed to override, or run terraform manually in the directory."
+                    )
+                    continue
 
             lab_dir = os.path.join("groups", group_name, "users", user_name, "labs", lab_name)
             if not os.path.exists(lab_dir):

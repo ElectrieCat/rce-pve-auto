@@ -73,6 +73,16 @@ def setup_cli():
         help="Limit --lab mode to a specific user (optional, requires --group)."
     )
     tf_parser.add_argument(
+        "--force-managed",
+        action="store_true",
+        dest="force_managed",
+        help=(
+            "Override managed=false for labs in --lab mode, running the command "
+            "even on unmanaged lab directories. Has no effect with --dir. "
+            "Use with caution — labs are probably marked unmanaged for a reason."
+        )
+    )
+    tf_parser.add_argument(
         "tf_args",
         nargs=argparse.REMAINDER,
         help=(
@@ -182,4 +192,5 @@ def run():
                 tf_args=tf_args,
                 filter_group=args.group,
                 filter_user=args.user,
+                force_managed=args.force_managed,
             )

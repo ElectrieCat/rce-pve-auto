@@ -1,50 +1,49 @@
 nets:
   ex-net:
-    # Type can have two different values, it's "local-bridge" and "sdn-bridge" which is currently not implemented and cannot be used
+    # Type can have two different values: "local-bridge" and "sdn-bridge"
+    # (sdn-bridge is currently not implemented and cannot be used)
     type: local-bridge
-    # Optional to declare, if not set then set as true anyways, determines if the bridge is auto-started on node startup
+    # Optional. Determines if the bridge is auto-started on node startup.
     # default: true
     autostart: true
-    # Optional to declare, follows the same logic of default as "autostart", all of the other defaults are doing the same, from not on it will not be explicitly described
+    # Optional. Makes the bridge VLAN-aware, allowing tagged traffic through.
     # default: false
-    # !!! IS NOT WORKING NOW DUE TO LACK OF BPG IMPLEMENTATION!!!
     vlan-aware: true
-    # If "vlan-aware" is set to true, then you should specify vids here in example format
-    vlans: '10-20,110,120'
-    # Optional to declare
+    # Optional. VLAN IDs allowed on the bridge (bridge-vids).
+    # Space-separated list of VLAN IDs and/or ranges, e.g. "2-4094" or "10 20 100-200".
+    # Only applied when vlan-aware is true.
+    vlans: '10-20 110 120'
+    # Optional.
     # default: 1500
     mtu: 1500
-    # Optional to declare, doesn't support variables,
-    # default format of created comment: "group_username_lab-name_net-name"
+    # Optional. Does not support variables.
+    # default format: "group_username_lab-name_net-name"
     comment: ''
-    # Optional to declare, adds ports to the bridge
-    # configure as the following example format
+    # Optional. Adds ports to the bridge.
     bridge-ports: eth1, eth2
-    # All of the next ip settings are optional to declare
-    # defaults: no defaults
+    # All IP settings below are optional, no defaults.
     ipv4-cidr:
     ipv4-gw:
     ipv6-cidr:
     ipv6-gw:
 
-# Settings for the lab deployed on node, you wll need to refer to those later in code manually during constructing a lab
+# Settings for the lab deployed on the node.
+# Refer to these variables in your Terraform code when creating VMs.
 pve-locals:
-  # Storage option, set the storage name that your actual storage on proxmox has
-  # defaults: no defaults
+  # Name of the storage on the Proxmox node.
   storage: storage
-  # Node option, the node that local-bridge would be deployed on, also a variable to refer to when creating vms
+  # Node that bridges are deployed on; also used as a variable in VM resources.
   node: pve-node3
 
-# Snapshots settings per lab
+# Snapshot settings per lab
 snapshots:
-  # Create option, whether to create a snapshot or not
+  # Whether to create a snapshot after deploying the lab.
   # default: false
   create: true
-  # Include ram option, make sure that VM is running before deploying lab, or the vm is set to be running state in terraform, so the provisioned vm is running right after it's provisioned
+  # Include RAM state. Requires the VM to be running at deploy time.
   # default: false
   include-ram: true
-  # Name option, name of the snapshot that's being created, name should be unique
-  # default: no defaults (iirc from code)
+  # Snapshot name (required when create: true). Must be unique.
   name: "CLEAR"
-  # Description of the created snapshot, visible to users
+  # Description visible to users in the Proxmox UI.
   description: "EVEN IF YOU CAN, DON'T DELETE ME, THERE IS NO UNDO"

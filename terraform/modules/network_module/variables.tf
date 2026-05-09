@@ -5,9 +5,8 @@ variable "networks_config" {
     real_name    = string
     type         = string
     autostart    = bool
-    # not yet possible due to bpg limitations
-    #vlan_aware   = bool
-    #vlan_id      = string
+    vlan_aware   = bool
+    vids         = string
     mtu          = number
     bridge_ports = string
     comment      = string
