@@ -1,6 +1,7 @@
 .venv/
 backups/
 groups/
+configs/
 passwords/
 terraform/providers_cache
 python/__pycache__/

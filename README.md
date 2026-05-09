@@ -16,6 +16,10 @@ Also, you must have python3 installed
 ```
 pip install -r requirements.txt 
 ```
+### Preparing configs folder
+```
+mv configs-example configs
+```
 ### Usage
 ```
 python manager.py -h
