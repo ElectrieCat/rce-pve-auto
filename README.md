@@ -276,3 +276,4 @@ python main.py backup
 
 ### TODO
 - Add role creation module and role configuration through main.yaml config
+- Add vars support to network comments in main.yaml of the lab
