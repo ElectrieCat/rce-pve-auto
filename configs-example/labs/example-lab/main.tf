@@ -19,7 +19,11 @@ resource "proxmox_virtual_environment_vm" "example-vm" {
   # Linked clone VM-ID, just in this example for ease
   clone {
     vm_id = 100
-    datastore_id = var.pve_locals.storage
+    # !!! IMPORTANT !!!
+    # When you're cloning from templates, you must omit this parameter.
+    # Linked clones live on the same storage as their master templates/vms, so specifying it will cause an error,
+    # because terraform thinks about it as the storage override. Omitting it means basically "create on the same storage as main template/vm"
+    #datastore_id = var.pve_locals.storage
   }
 
   # Network configuration, here you also should refer to lab specified network variables

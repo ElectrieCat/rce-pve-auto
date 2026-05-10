@@ -72,7 +72,6 @@ positional arguments:
 
 Every subcommand that makes changes supports `--plan` to preview what would happen without touching anything.
 
- - TODO: change-password should be able to take --user without group and maybe add --plan to it
 ---
 
 ### deploy-users
@@ -274,3 +273,6 @@ python main.py deploy-lab my-lab
 # 8. Back up everything
 python main.py backup
 ```
+
+### TODO
+- Add role creation module and role configuration through main.yaml config
