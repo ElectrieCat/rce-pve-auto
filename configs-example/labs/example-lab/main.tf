@@ -38,3 +38,10 @@ resource "proxmox_virtual_environment_vm" "example-vm" {
 output "vm_snapshot_ids" {
   value = [proxmox_virtual_environment_vm.example-vm.vm_id]
 }
+
+# Granting user rights on resource (users's lab's pool for example)
+resource "proxmox_acl" "acl" {
+  path    = "/pool/${var.pool_id}"
+  role_id = "PVEVMUser"
+  user_id = "${var.user_name}@pve"
+}

@@ -10,9 +10,10 @@ labs:
         # true value means that NoAccess is not applied, and the PVEPoolUser role is applied instead
         # default: true
         permit: true
+        # Required option for group, otherwise lab will not be deployed.
         # Managed option, determines if the script can anyhow affect user's lab directory, e.g. overwrite main.tf from lab config when deploying or any other operations with specified lab for user
-        # true value means that script can and will perform actions on lab's dir
-        # default: true
+        # true value means that script can and will perform actions on lab's dir upon being called on it.
+        # default: false
         managed: false
         # Destroy option, determines if the script will try to destroy lab for all users of the group or specified user
         # default: false
