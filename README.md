@@ -34,7 +34,7 @@ Each user and lab gets its own directory under `groups/`. These directories cont
 
 ```bash
 pip install -r requirements.txt
-mv configs-example configs
+cp -r configs-example configs
 ```
 
 ---
