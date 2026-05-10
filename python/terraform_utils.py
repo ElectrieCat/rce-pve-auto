@@ -101,7 +101,7 @@ def run_terraform_apply(directory):
     print(f"[*] Running Terraform Apply in: {directory}")
     result = _run_terraform_command(
         directory,
-        "apply", "-auto-approve", "-input=false", "-parallelism=1"
+        "apply", "-auto-approve", "-input=false", "-parallelism=4"
     )
     if result:
         print(f"[SUCCESS] Terraform applied in {directory}")
