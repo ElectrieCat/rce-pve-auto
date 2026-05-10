@@ -19,7 +19,7 @@ def setup_cli():
     test_parser.add_argument("--config", default="configs/users.yaml", help="Path to the config file")
 
     # deploy-users
-    deploy_parser = subparsers.add_parser("deploy-users", help="Deploy users and resource pools")
+    deploy_parser = subparsers.add_parser("deploy-users", help="Deploy users")
     deploy_parser.add_argument("group", help="Target group for deployment")
     deploy_parser.add_argument(
         "--plan", action="store_true",
@@ -107,7 +107,7 @@ def _load_users_or_exit(config_path="configs/users.yaml") -> dict:
 def _confirm_destroy(prompt: str) -> bool:
     """
     Asks the operator to confirm a destructive operation by typing the word 'destroy'.
-    Returns True if confirmed, False if cancelled.
+    Returns True if confirmed, False if canceled.
     Using a specific word rather than yes/no makes accidental confirmation harder.
     """
     print(f"[!] {prompt}")

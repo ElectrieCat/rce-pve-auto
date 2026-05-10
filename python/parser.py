@@ -105,6 +105,7 @@ def load_users_config(config_path="configs/users.yaml"):
         for member_name, member_data in group_data['members'].items():
             uid = member_data.get('internal_id')
             if uid is None:
+                print(f"[WARNING] {member_name} has no internal-id")
                 continue
             key = f"{group_name}/{member_name}"
             if uid in seen_ids:
@@ -143,6 +144,7 @@ def load_labs_matrix(path="configs/labs.yaml"):
             continue
         lid = lab_info.get('internal-id')
         if lid is None:
+            print(f"[WARNING] {lab_name} has no internal-id")
             continue
         if lid in seen_ids:
             print(
