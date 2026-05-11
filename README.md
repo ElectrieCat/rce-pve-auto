@@ -275,6 +275,6 @@ python main.py backup
 ```
 
 ### TODO
-- Add role creation module and role configuration through main.yaml config
+- Add role creation module and role configuration through main.yaml config and remove default assigning PVEPoolUser to pool
 - Add vars support to network comments in main.yaml of the lab
 - Fix annoying spam with [SKIP] when deploying a lab, which mentions managed: false due to script temporary patch that changes it's default to false for preventing deploying of unwnted labs for every group listed, this would require parser logic and default change after all I guess
