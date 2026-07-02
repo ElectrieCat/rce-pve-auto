@@ -1,3 +1,7 @@
+# Current project status
+Today, 02.07.2026, I define this tool development officially paused (maybe forever) due to me quitting the current job where I've needed it.
+Feel free to fork it and change the code, I hope you find it useful.
+
 # Proxmox Lab Automation Manager
 
 A Python + Terraform tool for managing Proxmox VE lab environments for multiple users and groups. Built for sysadmins running cybersecurity labs, training environments, or any setup where you need to provision isolated per-user infrastructure at scale.
