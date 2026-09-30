@@ -10,11 +10,11 @@ labs:
         # true value means that NoAccess is not applied, and the PVEPoolUser role is applied instead
         # default: true
         permit: true
-        # Required option for group, otherwise lab will not be deployed.
-        # Managed option, determines if the script can anyhow affect user's lab directory, e.g. overwrite main.tf from lab config when deploying or any other operations with specified lab for user
-        # true value means that script can and will perform actions on lab's dir upon being called on it.
-        # default: false
-        managed: false
+        # Managed option: whether the tool may create/update this lab for the group.
+        # true = deploy-lab will manage it; false = skip entirely.
+        # NOTE: groups NOT listed here are always skipped (as if managed: false).
+        # default when group is listed: true (see get_user_lab_status in python/deploy_labs.py)
+        managed: true
         # Destroy option, determines if the script will try to destroy lab for all users of the group or specified user
         # default: false
         destroy: false
@@ -22,7 +22,8 @@ labs:
           - name: UserEX
             # In this example it means, that after deploying the lab User would be assigned NoAccess role on pool, e.g. won't see the pool and any members of it
             permit: false
-            # In this example it means that lab won't be deployed for the user at all on first deploy, or won't be affected by changing lab's configuration later if set after deploy
-            managed: false
-            # In this example it means that script would try to destroy the lab upon calling destroy, but as the managed is set to false, it won't do anything
-            destroy: true
+            # Per-user override example: set managed: false to opt this user out,
+            # or destroy: true (plus managed: true) to mark for destroy-lab.
+            # Here the lab IS managed for UserEX (inherits true from group).
+            managed: true
+            destroy: false
