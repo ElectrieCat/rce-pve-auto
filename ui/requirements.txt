@@ -1,0 +1,3 @@
+# UI-only dependencies (core needs only PyYAML/proxmoxer/requests).
+fastapi>=0.110
+uvicorn>=0.29

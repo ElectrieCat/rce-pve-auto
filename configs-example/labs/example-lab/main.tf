@@ -29,8 +29,9 @@ resource "proxmox_virtual_environment_vm" "example-vm" {
   # Network configuration, here you also should refer to lab specified network variables
   network_device {
     # Binding the bridge on vm
-    bridge = module.base.bridge_names["net2"]
-    model  = "e1000"
+    # Key must match a network name from main.yaml (here: "ex-net")
+    bridge = module.base.bridge_names["ex-net"]
+    model  = "virtio"
   }
 
   serial_device {}
