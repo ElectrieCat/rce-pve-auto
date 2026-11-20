@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>rce-pve-auto — статус стендов</title>
+<style>
+body { font-family: monospace; max-width: 900px; margin: 2em auto; }
+pre { background: #f4f4f4; padding: 1em; white-space: pre-wrap; }
+.row { margin: .5em 0; }
+button { margin-right: .5em; }
+.hint { color: #555; }
+</style>
+</head>
+<body>
+<h1>Стенды Proxmox — обзор</h1>
+<div class="row">
+  <input id="group" placeholder="группа (пусто = все)">
+  <input id="lab" placeholder="лаба (пусто = все)">
+  <button onclick="showStatus()">status</button>
+</div>
+<div class="row">
+  <input id="planCmd" size="60" value='["deploy-lab", "minimal-lab", "--plan"]'>
+  <button onclick="runPlan()">plan (только --plan)</button>
+</div>
+<p class="hint">UI — только просмотр и превью. Apply/destroy/смена паролей — в терминале после проверки плана. Пароли тут не показываются, они в passwords/&lt;группа&gt;.csv</p>
+<pre id="out">...</pre>
+<script>
+async function showStatus() {
+  const g = document.getElementById('group').value;
+  const l = document.getElementById('lab').value;
+  const q = new URLSearchParams({...(g && {group: g}), ...(l && {lab: l})});
+  const r = await fetch('/api/status?' + q);
+  document.getElementById('out').textContent = JSON.stringify(await r.json(), null, 2);
+}
+async function runPlan() {
+  let cmd;
+  try { cmd = JSON.parse(document.getElementById('planCmd').value); }
+  catch (e) { document.getElementById('out').textContent = 'Bad JSON: ' + e; return; }
+  const r = await fetch('/api/run', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cmd})
+  });
+  document.getElementById('out').textContent = JSON.stringify(await r.json(), null, 2);
+}
+showStatus();
+</script>
+</body>
+</html>

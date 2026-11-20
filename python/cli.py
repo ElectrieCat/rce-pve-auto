@@ -39,6 +39,13 @@ def setup_cli():
     # backup
     subparsers.add_parser("backup", help="Create a system backup archive")
 
+    # status
+    status_parser = subparsers.add_parser(
+        "status", help="Show which labs are deployed for whom (read-only)"
+    )
+    status_parser.add_argument("--group", help="Limit to a specific group")
+    status_parser.add_argument("--lab", help="Limit to a specific lab")
+
     # terraform-run
     tf_parser = subparsers.add_parser(
         "terraform-run",
@@ -192,6 +199,12 @@ def run():
         success = create_system_backup()
         if not success:
             sys.exit(1)
+
+    elif args.command == "status":
+        from python.status import show_status
+
+        parsed = _load_users_or_exit()
+        show_status(parsed, filter_group=args.group, filter_lab=args.lab)
 
     elif args.command == "terraform-run":
         from python.terraform_utils import run_terraform_custom

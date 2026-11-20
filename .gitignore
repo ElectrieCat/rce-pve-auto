@@ -1,9 +1,23 @@
+# Python
 .venv/
-backups/
-groups/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Tool runtime (local state, never commit)
 configs/
 passwords/
+groups/
+backups/
 terraform/providers_cache
-python/__pycache__/
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Editors / OS
 .idea/
-.git/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db

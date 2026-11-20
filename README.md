@@ -2,11 +2,15 @@
 Today, 02.07.2026, I define this tool development officially paused (maybe forever) due to me quitting the current job where I've needed it.
 Feel free to fork it and change the code, I hope you find it useful.
 
+> **Fork note:** this copy continues maintenance for teachers running local training labs: cleanup, fixed examples, docs. Core architecture (YAML → Python → Terraform → Proxmox, `groups/` as state) is unchanged. See `LICENSE` (MIT).
+
 # Proxmox Lab Automation Manager
 
 A Python + Terraform tool for managing Proxmox VE lab environments for multiple users and groups. Built for sysadmins running cybersecurity labs, training environments, or any setup where you need to provision isolated per-user infrastructure at scale.
 
 > **Note:** This tool was built with AI assistance due to time constraints. If you find a bug or have an improvement, issues and pull requests are welcome.
+
+> **For teachers (RU):** пошаговая инструкция — `docs/TEACHER.md` (быстрый старт, ежедневные операции, новые стенды, безопасность, troubleshooting).
 
 ---
 
@@ -33,12 +37,14 @@ Each user and lab gets its own directory under `groups/`. These directories cont
 ## Requirements and configs setup
 
 - Linux (no Windows support planned)
-- Python 3
-- Terraform in your system PATH
+- Python 3.10+ (`pip install -r requirements.txt`)
+- Terraform in your system PATH (tested with 1.x; provider `bpg/proxmox` is fetched automatically on first `init`)
+- Network access from this machine to Proxmox API (`:8006`), nothing cloud-based
 
 ```bash
 pip install -r requirements.txt
 cp -r configs-example configs
+# then edit configs/auth.yaml, configs/users.yaml, configs/labs.yaml
 ```
 
 ---
@@ -71,10 +77,22 @@ python main.py -h
 
 ```
 positional arguments:
-  {change-password,parse-test,deploy-users,deploy-lab,destroy-lab,terraform-run,backup}
+  {change-password,parse-test,deploy-users,deploy-lab,destroy-lab,terraform-run,backup,status}
 ```
 
 Every subcommand that makes changes supports `--plan` to preview what would happen without touching anything.
+
+---
+
+### status
+
+Read-only overview: which labs are deployed for whom. Reads only `configs/*.yaml` and local `groups/` directories — no Proxmox/Terraform calls, safe anytime.
+
+```bash
+python main.py status
+python main.py status --group test-group
+python main.py status --lab minimal-lab
+```
 
 ---
 
@@ -99,6 +117,8 @@ See `configs/users.yaml` for full config format and options.
 ### deploy-lab
 
 Deploys a lab for all eligible users across all groups. Reads which users get the lab from `configs/labs.yaml`, generates per-user Terraform workspaces, and applies them.
+
+> Groups **not listed** under a lab in `labs.yaml` are always skipped. Groups listed with `managed: true` are deployed (per-user `managed` overrides group).
 
 ```bash
 # Preview what would be created
@@ -278,7 +298,13 @@ python main.py deploy-lab my-lab
 python main.py backup
 ```
 
-### TODO
+---
+
+## License
+
+MIT — see `LICENSE`. Original work by ElectrieCat, continued by contributors.
+
+### TODO (from upstream, kept as-is)
 - Add role creation module and role configuration through main.yaml config and remove default assigning PVEPoolUser to pool
 - Add vars support to network comments in main.yaml of the lab
 - Fix annoying spam with [SKIP] when deploying a lab, which mentions managed: false due to script temporary patch that changes it's default to false for preventing deploying of unwnted labs for every group listed, this would require parser logic and default change after all I guess

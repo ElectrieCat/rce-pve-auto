@@ -1,0 +1,23 @@
+# Minimal lab: 1 isolated network, 1 VM, no snapshots.
+# Copy this directory to start a new lab: cp -r minimal-lab my-lab
+nets:
+  lab-net:
+    type: local-bridge
+    autostart: true
+    # Keep false for the first deploy; enable VLANs later if needed.
+    vlan-aware: false
+    mtu: 1500
+    comment: ''
+    # "" = isolated bridge (no uplink). Or "eth0" etc. to add a port. Keep quoted.
+    bridge-ports: ""
+
+# TODO: replace with your node/storage names (must exist in Proxmox).
+pve-locals:
+  storage: local-lvm
+  node: pve
+
+# Snapshots disabled for the minimal path.
+# Enable later: create: true + name + non-empty vm_snapshot_ids output in main.tf
+snapshots:
+  create: false
+  include-ram: false

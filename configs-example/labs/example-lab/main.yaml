@@ -19,8 +19,9 @@ nets:
     # Optional. Does not support variables.
     # default format: "group_username_lab-name_net-name"
     comment: ''
-    # Optional. Adds ports to the bridge.
-    bridge-ports: eth1, eth2
+    # Optional. Adds physical ports to the bridge (comma-separated, quoted).
+    # Example: "eth1,eth2" or "" for isolated (no uplink). Keep quoted.
+    bridge-ports: ""
     # All IP settings below are optional, no defaults.
     ipv4-cidr:
     ipv4-gw:
